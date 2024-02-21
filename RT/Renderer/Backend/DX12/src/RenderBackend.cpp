@@ -3809,7 +3809,7 @@ void RenderBackend::RaytraceRender()
 		uint32_t* pixels;
 		DX_CALL(readback->Map(0, nullptr, (void**)&pixels));
 
-		RT_WritePNGToDisk(g_d3d.queued_screenshot_name, g_d3d.render_width, g_d3d.render_height, 4, pixels, fp.Footprint.RowPitch);
+		RT_WritePNGToDisk(g_d3d.queued_screenshot_name, g_d3d.output_width, g_d3d.output_height, 4, pixels, fp.Footprint.RowPitch);
 
 		readback->Unmap(0, nullptr);
 	}
