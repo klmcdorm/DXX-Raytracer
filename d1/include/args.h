@@ -93,6 +93,7 @@ typedef struct Arg
 	int DbgSdlASyncBlit;
 #endif
 	int LogNetTraffic; 
+	char* RTTextureDir;
 } __pack__ Arg;
 
 extern struct Arg GameArg;

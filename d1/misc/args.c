@@ -137,6 +137,8 @@ void ReadCmdArgs(void)
 	if (GameArg.SysHogDir == NULL)
 		GameArg.SysNoHogDir = FindArg("-nohogdir");
 
+	GameArg.RTTextureDir = get_str_arg("-texturedir", "assets/textures");
+
 	GameArg.SysUsePlayersDir 	= FindArg("-use_players_dir");
 	GameArg.SysLowMem 		= FindArg("-lowmem");
 	GameArg.SysPilot 		= get_str_arg("-pilot", NULL);

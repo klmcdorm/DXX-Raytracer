@@ -16,6 +16,7 @@
 
 #include "dx12.h"
 #include "rle.h"
+#include "args.h"
 
 // ------------------------------------------------------------------
 
@@ -89,7 +90,7 @@ static void RT_ParseMaterialDefinitionFile(int bm_index, RT_Material *material, 
 		// in this function. Don't do it, I tell you! Just things read from
 		// the material definition file!!
 
-		char *material_file = RT_ArenaPrintF(&g_thread_arena, "assets/textures/%s.material", bitmap_name);
+		char *material_file = RT_ArenaPrintF(&g_thread_arena, "%s/%s.material", GameArg.RTTextureDir, bitmap_name);
 
 		RT_Config cfg;
 		RT_InitializeConfig(&cfg, &g_thread_arena);
@@ -168,7 +169,7 @@ static int RT_LoadMaterialTexturesFromPaths(uint16_t bm_index, RT_Material *mate
 				RT_TextureFormat format = g_rt_material_texture_slot_formats[i];
 				bool is_srgb = (format == RT_TextureFormat_RGBA8_SRGB);
 
-				char* dds_file = RT_ArenaPrintF(&g_thread_arena, "assets/textures/%s.dds", paths->textures[i]);
+				char* dds_file = RT_ArenaPrintF(&g_thread_arena, "%s/%s.dds", GameArg.RTTextureDir, paths->textures[i]);
 
 				// TODO(daniel): It's dumb that RT_ArenaPrintF doesn't return an RT_String
 				RT_Image image = RT_LoadDDSFromDisk(&g_thread_arena, RT_StringFromCString(dds_file));
@@ -195,7 +196,7 @@ static int RT_LoadMaterialTexturesFromPaths(uint16_t bm_index, RT_Material *mate
 			{
 				RT_ArenaMemoryScope(&g_thread_arena)
 				{
-					char* file = RT_ArenaPrintF(&g_thread_arena, "assets/textures/%s.png", paths->textures[i]);
+					char* file = RT_ArenaPrintF(&g_thread_arena, "%s/%s.png", GameArg.RTTextureDir, paths->textures[i]);
 
 					RT_TextureFormat format = g_rt_material_texture_slot_formats[i];
 
@@ -356,7 +357,7 @@ static bool TextureFileIsOutdated(char *name)
 {
 	RT_ArenaMemoryScope(&g_thread_arena)
 	{
-		char *path = RT_ArenaPrintF(&g_thread_arena, "assets/textures/%s", name);
+		char *path = RT_ArenaPrintF(&g_thread_arena, "%s/%s", GameArg.RTTextureDir, name);
 
 		PHYSFS_Stat stat;
 		if (PHYSFS_stat(path, &stat))
@@ -402,7 +403,7 @@ int RT_ReloadMaterials(void)
 
 		uint32_t needs_reload = 0;
 
-		char *material_definition_path = RT_ArenaPrintF(&g_thread_arena, "assets/textures/%s.material", bitmap_file_name);
+		char *material_definition_path = RT_ArenaPrintF(&g_thread_arena, "%s/%s.material", GameArg.RTTextureDir, bitmap_file_name);
 		if (TextureFileIsOutdated(material_definition_path))
 		{
 			RT_MaterialPaths new_paths = {0};
