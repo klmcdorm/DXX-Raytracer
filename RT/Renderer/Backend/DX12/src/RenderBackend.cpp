@@ -3459,6 +3459,8 @@ RT_ResourceHandle RenderBackend::UploadTexture(const RT_UploadTextureParams& tex
 	if (generate_mips)
 	{
 		resource_mip_count = RT_U32Log2(RT_MIN(image.width, image.height));
+		// 6 = log2(64) -- minimum mip map size
+		resource_mip_count = resource_mip_count > 6 ? resource_mip_count - 6 : 1;
 	}
 	else if (is_dxt_format)
 	{
