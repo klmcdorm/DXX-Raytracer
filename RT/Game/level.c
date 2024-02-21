@@ -269,6 +269,113 @@ void RT_RenderLevel(RT_Vec3 player_pos)
 	RT_RaytraceMesh(g_level_resource, &mat, &mat);
 }
 
+
+uint16_t m_visit_queue[MAX_SEGMENTS];
+uint8_t m_visit_queue_depth[MAX_SEGMENTS];
+RT_Vec3 m_visit_queue_segpos[MAX_SEGMENTS];
+float m_visit_queue_segdist[MAX_SEGMENTS];
+// TODO maybe a distance-based heuristic? (change FIFO queue to a priority queue / heap?)
+void TraverseSegmentsForLightsBF(short seg_num, RT_Vec3 seg_entry_pos) {
+	uint8_t lights_added[_countof(m_lights)] = { 0 };
+	uint8_t visit_list[MAX_SEGMENTS] = { 0 };
+
+	m_visit_queue[0] = seg_num;
+	m_visit_queue_depth[0] = 0;
+	m_visit_queue_segpos[0] = seg_entry_pos;
+	m_visit_queue_segdist[0] = 0.0f;
+	short visit_queue_index = 0;
+	short visit_queue_length = 1;
+
+	while (visit_queue_index < visit_queue_length) {
+		short segnum = m_visit_queue[visit_queue_index];
+		RT_Vec3 curr_seg_entry_pos = m_visit_queue_segpos[visit_queue_index];
+		uint8_t curr_rec_depth = m_visit_queue_depth[visit_queue_index];
+		float curr_rec_dist    = m_visit_queue_segdist[visit_queue_index];
+		segment* seg = &Segments[segnum];
+
+		// Upload all the lights in this segment
+		for (int j = 0; j < m_light_count; ++j) {
+			// Filter out lights that aren't in this segment
+			if (m_lights_seg_ids[j] == -1)
+				continue;
+			if (m_lights_seg_ids[j] != segnum)
+				continue;
+
+			// Filter out lights that have already been added - this should fix the issue with lights being added twice
+			if (lights_added[j] != 0)
+				continue;
+
+			// Filter out lights that are too far away from the camera - direct path
+			const float distance_from_player = RT_Vec3Length(RT_Vec3Sub(RT_Vec3Fromvms_vector(&Viewer->pos), RT_TranslationFromMat34(m_lights[j].transform)));
+			if (distance_from_player > max_distance)
+				continue;
+
+			// Filter out lights that are too far away from the camera - segment distance - this is broken, don't use it
+			const float distance_from_seg_entry_pos = curr_rec_dist + RT_Vec3Length(RT_Vec3Sub(curr_seg_entry_pos, RT_TranslationFromMat34(m_lights[j].transform)));
+			//if (distance_from_seg_entry_pos > max_seg_distance)
+			//	continue;
+
+			// Mark this light as added
+			lights_added[j] = 1;
+
+			// The lower the value, the more relevant the light is
+			m_lights_relevance_score[m_lights_found] = (float)distance_from_seg_entry_pos;
+			m_lights_to_sort[m_lights_found] = j;
+			++m_lights_found;
+		}
+
+		// search adjacent segments
+		for (size_t i = 0; i < MAX_SIDES_PER_SEGMENT && curr_rec_depth < max_rec_depth; ++i) {
+			// Assuming that RENDPAST means "render past this wall", if that is 0, we stop the traversal here
+			const int wid = WALL_IS_DOORWAY(seg, i);
+			if ((wid & WID_RENDPAST_FLAG) == 0)
+				continue;
+
+			// Get the segment number of this child segment
+			const short seg_num_child = seg->children[i];
+
+			// If it's -1 or -2, there is no segment on this side, skip it
+			if (seg_num_child < 0)
+				continue;
+
+			// already processed, skip it
+			if (visit_list[seg_num_child])
+				continue;
+
+			// Find the current segment's side's vertices
+			RT_Vec3 verts[4];
+			for (size_t j = 0; j < _countof(Side_to_verts_int[j]); ++j) {
+				// Get one of the vertices of the side
+				verts[j] = RT_Vec3Fromvms_vector(&Vertices[Segments[seg_num_child].verts[Side_to_verts_int[i][j]]]);
+			}
+
+			// Calculate center
+			const RT_Vec3 tmp1 = RT_Vec3Add(verts[0], verts[1]);
+			const RT_Vec3 tmp2 = RT_Vec3Add(verts[2], verts[3]);
+			const RT_Vec3 center = RT_Vec3Muls(RT_Vec3Add(tmp1, tmp2), 0.25f);
+
+			// Find distance between segment entry
+			const RT_Vec3 vector_from_entry_to_curr_segment = RT_Vec3Sub(center, curr_seg_entry_pos);
+			const float distance_from_entry_to_curr_segment_squared = RT_Vec3Length(vector_from_entry_to_curr_segment);
+
+			// too far, skip it
+			if (distance_from_entry_to_curr_segment_squared > max_seg_distance)
+				continue;
+
+			// enqueue child seg
+			visit_list[seg_num_child] = 1;
+
+			m_visit_queue[visit_queue_length] = seg_num_child;
+			m_visit_queue_depth[visit_queue_length] = curr_rec_depth + 1;
+			m_visit_queue_segpos[visit_queue_length] = center;
+			m_visit_queue_segdist[visit_queue_length] = curr_rec_dist + distance_from_entry_to_curr_segment_squared;
+			visit_queue_length++;
+		}
+
+		visit_queue_index++;
+	}
+}
+
 void TraverseSegmentsForLights(short seg_num, uint8_t* visit_list, uint8_t* lights_added, int curr_rec_depth, RT_Vec3 curr_seg_entry_pos, float curr_segment_distance) {
 	// Did we reach max recursion depth already? then we skip
 	if (curr_rec_depth >= max_rec_depth)
@@ -415,8 +522,10 @@ void RT_FindAndSubmitNearbyLights(RT_Vec3 player_pos)
 		uint8_t visit_list[MAX_SEGMENTS] = { 0 };
 		uint8_t lights_added[_countof(m_lights)] = { 0 };
 
+		// TODO only search for lights if the Viewer segnum has changed?
 		// Find all the lights that the player has a direct path towards
-		TraverseSegmentsForLights(Viewer->segnum, visit_list, lights_added, 0, RT_Vec3Fromvms_vector(&Viewer->pos), 0.0f);
+		//TraverseSegmentsForLights(Viewer->segnum, visit_list, lights_added, 0, RT_Vec3Fromvms_vector(&Viewer->pos), 0.0f);
+		TraverseSegmentsForLightsBF(Viewer->segnum, RT_Vec3Fromvms_vector(&Viewer->pos));
 
 		// If the number of lights exceeds the max number of lights, we need to pick the best ones
 		if (m_lights_found > max_lights) {
