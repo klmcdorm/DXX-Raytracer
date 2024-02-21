@@ -26,7 +26,7 @@
 //changed on 980905 by adb to increase number of concurrent sounds
 #define MAX_SOUND_SLOTS 32
 //end changes by adb
-#define SOUND_BUFFER_SIZE 1024
+#define SOUND_BUFFER_SIZE 256 // 256 at 11k should be equivalent to 1024 at 44k
 
 #define MIN_VOLUME 10
 
