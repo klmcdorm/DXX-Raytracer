@@ -106,25 +106,174 @@ RT_Triangle RT_TriangleFromIndices(RT_Vertex* verts, int vert_offset, int v0, in
 	return triangle;
 }
 
+// Clip UV coordinates to a somewhat tight fit around the given light.
+// Returns (min X, min Y, max X, max Y)
+RT_Vec4 ClipToUV2(RT_Vec2 lightuv_min2, RT_Vec2 lightuv_max2, int orientation, RT_Vec2 uv_min, RT_Vec2 uv_max) 
+{
+	RT_Vec2 box_min = RT_Vec2Make(truncf(uv_min.x), truncf(uv_min.y));
+	RT_Vec2 box_max = RT_Vec2Make(truncf(uv_max.x), truncf(uv_max.y));
+	float rem;
+
+	// ugly but I don't want to deal with things changing during my calculation
+	RT_Vec2 lightuv_min, lightuv_max;
+	switch (orientation)
+	{
+		case 1:
+			lightuv_min = RT_Vec2Make(lightuv_min2.y, 1 - lightuv_max2.x);
+			lightuv_max = RT_Vec2Make(lightuv_max2.y, 1 - lightuv_min2.x);
+			break;
+		case 2:
+			lightuv_min = RT_Vec2Make(1 - lightuv_max2.x, 1 - lightuv_max2.y);
+			lightuv_max = RT_Vec2Make(1 - lightuv_min2.x, 1 - lightuv_min2.y);
+			break;
+		case 3:
+			lightuv_min = RT_Vec2Make(1 - lightuv_max2.y, lightuv_min2.x);
+			lightuv_max = RT_Vec2Make(1 - lightuv_min2.y, lightuv_max2.x);
+			break;
+		case 0:
+		default:
+			lightuv_min = lightuv_min2;
+			lightuv_max = lightuv_max2;
+			break;
+	}
+
+	// X
+	rem = uv_min.x - box_min.x;
+	if (rem < 0)
+	{
+		box_min.x -= 1;
+		rem += 1;
+	}
+
+	if (rem < lightuv_min.x)
+		box_min.x += lightuv_min.x;     // trim to start of prev light
+	else if (rem < lightuv_max.x)
+		box_min.x = uv_min.x;           // include part of prev light
+	else
+		box_min.x += lightuv_min.x + 1; // trim to start of next light
+
+
+	rem = uv_max.x - box_max.x;
+	if (rem < 0)
+	{
+		box_max.x -= 1;
+		rem += 1;
+	}
+
+	if (rem < lightuv_min.x)
+		box_max.x += lightuv_max.x - 1; // trim to end of previous light
+	else if (rem < lightuv_max.x)
+		box_max.x = uv_max.x;           // include a fraction of next light
+	else
+		box_max.x += lightuv_max.x;     // trim to end of next light
+
+	// Y
+	rem = uv_min.y - box_min.y;
+	if (rem < 0)
+	{
+		box_min.y -= 1;
+		rem += 1;
+	}
+
+	if (rem < lightuv_min.y)
+		box_min.y += lightuv_min.y;     // trim to start of prev light
+	else if (rem < lightuv_max.y)
+		box_min.y = uv_min.y;           // include part of prev light
+	else
+		box_min.y += lightuv_min.y + 1; // trim to start of next light
+
+
+	rem = uv_max.y - box_max.y;
+	if (rem < 0)
+	{
+		box_max.y -= 1;
+		rem += 1;
+	}
+
+	if (rem < lightuv_min.y)
+		box_max.y += lightuv_max.y - 1; // trim to end of previous light
+	else if (rem < lightuv_max.y)
+		box_max.y = uv_max.y;           // include a fraction of next light
+	else
+		box_max.y += lightuv_max.y;     // trim to end of next light
+
+	//	RT_LOGF(RT_LOGSERVERITY_INFO, "calculated light bbox. {X: %f, Y: %f}, {X: %f, Y: %f}", box_min.x, box_min.y, box_max.x, box_max.y);
+	return RT_Vec4Make(box_min.x, box_min.y, box_max.x, box_max.y);
+}
+
+RT_Vec4 ClipToUV(RT_LightDefinition light, int orientation, RT_Vec2 uv_min, RT_Vec2 uv_max)
+{
+	RT_Vec2 lightuv_min = RT_Vec2Make(light.extent.x, light.extent.y);
+	RT_Vec2 lightuv_max = RT_Vec2Make(light.extent.z, light.extent.w);
+
+	RT_Vec4 result1 = ClipToUV2(lightuv_min, lightuv_max, orientation, uv_min, uv_max);
+	if (RT_Vec4LengthSq(light.extent2) > 0.01) // basically, only if defined
+	{
+		// combine multiple light extents by making a big box that covers both
+		lightuv_min = RT_Vec2Make(light.extent2.x, light.extent2.y);
+		lightuv_max = RT_Vec2Make(light.extent2.z, light.extent2.w);
+		RT_Vec4 result2 = ClipToUV2(lightuv_min, lightuv_max, orientation, uv_min, uv_max);
+		return RT_Vec4Make(
+			min(result1.x, result2.x), min(result1.y, result2.y), 
+			max(result1.z, result2.z), max(result1.w, result2.w)
+		);
+	}
+	return result1;
+}
+
 void RT_ExtractLightsFromSide(side *side, RT_Vertex *vertices, RT_Vec3 normal, int seg_id)
 {
-	int light_index = RT_IsLight(side->tmap_num2 & 0x3FFF);
+	int orientation = 0;
+	int light_index = RT_IsLight(side->tmap_num);
+	if (light_index < 0)
+	{
+		light_index = RT_IsLight(side->tmap_num2 & 0x3FFF);
+		orientation = ((side->tmap_num2 & 0xC000) >> 14) & 0x3;
+	}
+
 	if (light_index > -1)
 	{
+		RT_Vec2 uvs[4];
+		
 		RT_Vec2 uv_min = RT_Vec2Make(INFINITY, INFINITY);
 		RT_Vec2 uv_max = RT_Vec2Make(-INFINITY, -INFINITY);
 		for (int i = 0; i < 4; i++)
 		{
 			RT_Vec2 uv = RT_Vec2Make((f2fl(side->uvls[i].u)),(f2fl(side->uvls[i].v)));
+			uvs[i] = uv;
 			
 			uv_min = RT_Vec2Min(uv, uv_min);
 			uv_max = RT_Vec2Max(uv, uv_max);
 		}
 
-		bool multiple_lights = false;
-		if(uv_min.x < -1.0 || uv_min.y < -1.0 || uv_max.x > 1.0 || uv_max.y > 1.0)
+		// idea: 
+		// make an axis-aligned box in UV-space that covers the side's lights
+		// then transform a unit square to that, then transform to side edges
+		// maybe reduce emission in proportion to how much of the box is a light
+		RT_Vec2 uv_midpoints[4];
+		RT_Vec2 uv_midmin = RT_Vec2Make(INFINITY, INFINITY);
+		RT_Vec2 uv_midmax = RT_Vec2Make(-INFINITY, -INFINITY);
+
+		for (int i = 0; i < 4; i++) 
 		{
-			RT_Vec2 uv = RT_Vec2Sub(uv_max, uv_min);
+			uv_midpoints[i] = RT_Vec2Muls(RT_Vec2Add(uvs[i], uvs[(i + 1) % 4]), 0.5);
+
+			uv_midmin = RT_Vec2Min(uv_midpoints[i], uv_midmin);
+			uv_midmax = RT_Vec2Max(uv_midpoints[i], uv_midmax);
+		}
+
+		// TODO clip using midpoints of UV edges as bounds?
+		RT_Vec4 box_bounds = ClipToUV(g_light_definitions[light_index], orientation, uv_midmin, uv_midmax);
+		RT_Vec2 box_min = box_bounds.xy;
+		RT_Vec2 box_max = RT_Vec2Make(box_bounds.z, box_bounds.w);
+
+		RT_LOGF(RT_LOGSERVERITY_INFO, "calculated light bbox. {X: %f, Y: %f}, {X: %f, Y: %f}", box_min.x, box_min.y, box_max.x, box_max.y);
+
+		bool multiple_lights = false;
+		RT_Vec2 uv = RT_Vec2Sub(uv_max, uv_min);
+
+		if (uv.x > 1.0 || uv.y > 1.0) 
+		{
 			RT_Vec2 light_size = g_light_definitions[light_index].size;
 
 			int num_x = max((int)(uv.x / light_size.x),1);
@@ -134,15 +283,69 @@ void RT_ExtractLightsFromSide(side *side, RT_Vertex *vertices, RT_Vec3 normal, i
 			if(num_x > 1 && num_y > 1)
 			{
 				RT_LOGF(RT_LOGSERVERITY_INFO, "Multiple lights created!");
-				multiple_lights = true;
+				//multiple_lights = true;
 			}
 		}
 
+		RT_Vec2 box_size = RT_Vec2Sub(box_max, box_min);
 		if (!multiple_lights) 
 		{
 			if (ALWAYS(m_light_count < RT_ARRAY_COUNT(m_lights)))
 			{
-				m_lights[m_light_count] = RT_InitLight(g_light_definitions[light_index], vertices, normal);
+				if (g_light_definitions[light_index].kind == RT_LightKind_Area_Sphere || box_size.x < 0.01 || box_size.y < 0.01)
+				{
+					m_lights[m_light_count] = RT_InitLight(g_light_definitions[light_index], vertices, normal);
+				}
+				else 
+				{
+					// unit (-1 to 1) XZ square => UV space => UV edges space => segment side space?
+					RT_Vec2 box_center = RT_Vec2Muls(RT_Vec2Add(box_min, box_max), 0.5);
+
+					RT_Mat4 transform = {
+						.e = {
+							box_size.x * 0.5, 0, 0,                box_center.x,
+							0,                1, 0,                0,
+							0,                0, box_size.y * 0.5, box_center.y,
+							0,                0, 0,                1
+						}
+					};
+
+					RT_Vec2 uvtangent   = RT_Vec2Sub(uvs[1], uvs[0]);
+					RT_Vec2 uvtangent2  = RT_Vec2Normalize(RT_Vec2Make(-uvtangent.y, uvtangent.x));
+					RT_Vec2 uvbitangent = RT_Vec2Sub(uvs[0], uvs[3]);
+					uvbitangent = RT_Vec2Muls(uvtangent2, RT_Vec2Dot(uvtangent2, uvbitangent));
+
+					RT_Mat4 uvtransform = {
+						.e = {
+							uvtangent.x, 0, uvbitangent.x,   uvs[0].x,
+							0,           1, 0,               0,
+							uvtangent.y, 0, uvbitangent.y,   uvs[0].y,
+							0,           0, 0,               1
+						}
+					};
+					transform = RT_Mat4Mul(RT_Mat4Inverse(uvtransform), transform);
+
+					// 1.0 UV == 20.0 segment units?
+					//transform = RT_Mat4Mul(RT_Mat4FromScale(RT_Vec3Make(20, 1, 20)), transform);
+
+					RT_Vec3 side_center = vertices[0].pos;
+					//side_center = RT_Vec3Add(side_center, vertices[1].pos);
+					//side_center = RT_Vec3Add(side_center, vertices[2].pos);
+					//side_center = RT_Vec3Add(side_center, vertices[3].pos);
+					//side_center = RT_Vec3Muls(side_center, 0.25f);
+
+					// Offset position with normal to prevent light clipping with walls.
+					RT_Vec3 position = RT_Vec3MulsAdd(side_center, normal, 0.015f);
+
+					RT_Vec3   tangent = RT_Vec3Sub(vertices[1].pos, vertices[0].pos);
+					RT_Vec3   bitangent = RT_Vec3Sub(vertices[0].pos, vertices[3].pos);
+					RT_Vec3   bitangent2 = RT_Vec3Cross(RT_Vec3Normalize(tangent), normal);
+					bitangent2 = RT_Vec3Muls(bitangent2, RT_Vec3Dot(bitangent, bitangent2));
+
+					transform = RT_Mat4Mul(RT_Mat4FromMat34(RT_Mat34FromColumns(tangent, normal, bitangent2, position)), transform);
+					m_lights[m_light_count] = RT_InitLightM4(g_light_definitions[light_index], RT_Mat34FromMat4(transform));
+				}
+
 				m_lights_definitions[m_light_count] = light_index;
 				m_extracted_light_sides[m_light_count] = side;
 
@@ -244,7 +447,8 @@ RT_ResourceHandle RT_UploadLevelGeometry()
 						triangles[num_triangles++] = RT_TriangleFromIndices(verts, vertex_offset, 0, 2, 3, absolute_side_index);
 					break;
 				}
-				
+
+				RT_LOGF(RT_LOGSERVERITY_INFO, "RT_ExtractLightsFromSide. seg=%i side=%i", seg_id, side_index);
 				RT_ExtractLightsFromSide(s, &verts[vertex_offset], triangles[num_triangles - 1].normal0, seg_id);
 			}
 		}

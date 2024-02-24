@@ -38,6 +38,8 @@ typedef struct RT_LightDefinition
 	RT_Vec2		 size;
 	float		 spot_angle;
 	float		 spot_softness;
+	RT_Vec4      extent;
+	RT_Vec4      extent2;
 } RT_LightDefinition;
 
 extern RT_LightDefinition g_light_definitions[];
@@ -47,6 +49,7 @@ void RT_ResetLightSettings(void);
 // Returns g_light_definition index if light, otherwise -1.
 int RT_IsLight(int tmap);
 RT_Light RT_InitLight(RT_LightDefinition definition, RT_Vertex* vertices, RT_Vec3 normal);
+RT_Light RT_InitLightM4(RT_LightDefinition definition, RT_Mat34 transform);
 void RT_ShowLightMenu(void);
 void RT_VisualizeLight(RT_Light* light);
 void RT_LoadLightSettings(void);

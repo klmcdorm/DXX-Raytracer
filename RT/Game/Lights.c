@@ -53,7 +53,7 @@ static RT_SettingsNotification g_headlights_notification;
 
 RT_LightDefinition g_light_definitions[] =
 {
-	// White light fixtures
+	// Yellow light fixtures
 	{
 		.name = "ceil002",
 		.kind = RT_LightKind_Area_Rect,
@@ -61,6 +61,7 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.5f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
+		.extent = {0.25,0.25,0.75,0.75},
 	},
 	{
 		.name = "ceil003",
@@ -69,6 +70,7 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.5f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
+		.extent = {0.33,0.33,0.66,0.66},
 	},
 	{
 		.name = "ceil008",
@@ -77,6 +79,7 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.5f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
+		.extent = {0.33,0.33,0.66,0.66},
 	},
 	{
 		.name = "ceil020",
@@ -85,6 +88,8 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.3f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
+		.extent  = {0,0,0.15,1},
+		.extent2 = {0.85,0,1,1},
 	},
 	// White light fixtures
 	{
@@ -94,6 +99,8 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.5f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
+		.extent  = {0,0,0.15,1},
+		.extent2 = {0.85,0,1,1},
 	},
 	{
 		.name = "ceil023",
@@ -102,6 +109,8 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.5f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
+		.extent  = {0,0,0.15,1},
+		.extent2 = {0.85,0,1,1},
 	},
 	{
 		.name = "ceil024",
@@ -110,6 +119,7 @@ RT_LightDefinition g_light_definitions[] =
 		.size = {1.0, 1.0},
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
+		.extent = {0.25,0.25,0.75,0.75},
 	},
 	{
 		.name = "ceil025",
@@ -118,6 +128,7 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.3f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
+		.extent = {0.33,0.33,0.66,0.66},
 	},
 	{
 		.name = "ceil026",
@@ -126,6 +137,7 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.3f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
+		.extent = {0.33,0.33,0.66,0.66},
 	},
 	{
 		.name = "ceil027",
@@ -134,6 +146,7 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.3f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
+		.extent = {0.33,0.33,0.66,0.66},
 	},
 	{
 		.name = "ceil028",
@@ -142,6 +155,8 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.4f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
+		.extent  = {0.25,0.15,0.75,0.40},
+		.extent2 = {0.25,0.60,0.75,0.85},
 	},
 	{
 		.name = "ceil029",
@@ -150,6 +165,8 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.8f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
+		.extent  = {0.15,0.15,0.85,0.35},
+		.extent2 = {0.25,0.65,0.75,0.85},
 	},
 	{
 		.name = "ceil030",
@@ -158,6 +175,8 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.8f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
+		.extent  = {0.15,0.15,0.99,0.35},
+		.extent2 = {0.15,0.65,0.99,0.85},
 	},
 	{
 		.name = "ceil031",
@@ -166,6 +185,8 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.8f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
+		.extent  = {0,0.15,1,0.35},
+		.extent2 = {0,0.65,1,0.85},
 	},
 	{
 		.name = "ceil034",
@@ -174,6 +195,8 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.8f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
+		.extent  = {0.5,0.15,0.99,0.35},
+		.extent2 = {0.5,0.65,0.99,0.85},
 	},
 	{
 		.name = "ceil035",
@@ -182,6 +205,7 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.8f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
+		.extent = {0.33,0.33,0.66,0.66},
 	},
 	{
 		.name = "ceil036",
@@ -190,6 +214,90 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.8f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
+		.extent = {0.33,0.25,0.66,0.75},
+	},
+	// Door lights
+	{
+		.name = "metl126",
+		.kind = RT_LightKind_Area_Rect,
+		.emission = {1.f,1.f,1.f},
+		.radius = 0.3f,
+		.spot_angle = 0.3f,
+		.spot_softness = 0.2f,
+		.extent = {0.02,0.02,0.25,0.98},
+	},
+	{
+		.name = "metl133",
+		.kind = RT_LightKind_Area_Rect,
+		.emission = {2.f,0.2f,0.2f},
+		.radius = 0.3f,
+		.spot_angle = 0.3f,
+		.spot_softness = 0.2f,
+		.extent = {0.02,0.02,0.25,0.98},
+	},
+	{
+		.name = "metl134",
+		.kind = RT_LightKind_Area_Rect,
+		.emission = {0.2f,0.2f,2.f},
+		.radius = 0.3f,
+		.spot_angle = 0.3f,
+		.spot_softness = 0.2f,
+		.extent = {0.02,0.02,0.25,0.98},
+	},
+	{
+		.name = "metl135",
+		.kind = RT_LightKind_Area_Rect,
+		.emission = {1.5f,1.5f,0.f},
+		.radius = 0.3f,
+		.spot_angle = 0.3f,
+		.spot_softness = 0.2f,
+		.extent = {0.02,0.02,0.25,0.98},
+	},
+	// Misc lights
+	{
+		.name = "metl078",
+		.kind = RT_LightKind_Area_Rect,
+		.emission = {3.f,3.f,3.f},
+		.radius = 0.3f,
+		.spot_angle = 0.3f,
+		.spot_softness = 0.2f,
+		.extent = {0,0.15,1,0.3},
+	},
+	{
+		.name = "metl079",
+		.kind = RT_LightKind_Area_Rect,
+		.emission = {3.f,3.f,3.f},
+		.radius = 0.3f,
+		.spot_angle = 0.3f,
+		.spot_softness = 0.2f,
+		.extent = {0.55,0.15,1,0.3},
+	},
+	{
+		.name = "metl080",
+		.kind = RT_LightKind_Area_Rect,
+		.emission = {3.f,3.f,3.f},
+		.radius = 0.3f,
+		.spot_angle = 0.3f,
+		.spot_softness = 0.2f,
+		.extent = {0.0,0.15,0.45,0.3},
+	},
+	{
+		.name = "metl089",
+		.kind = RT_LightKind_Area_Rect,
+		.emission = {3.f,3.f,3.f},
+		.radius = 0.3f,
+		.spot_angle = 0.3f,
+		.spot_softness = 0.2f,
+		.extent = {0.55,0.15,1.0,0.3},
+	},
+	{
+		.name = "metl090",
+		.kind = RT_LightKind_Area_Rect,
+		.emission = {3.f,3.f,3.f},
+		.radius = 0.3f,
+		.spot_angle = 0.3f,
+		.spot_softness = 0.2f,
+		.extent = {0.0,0.15,0.45,0.3},
 	},
 };
 
@@ -298,6 +406,20 @@ RT_Light RT_InitLight(RT_LightDefinition definition, RT_Vertex* vertices, RT_Vec
 		} break;
 	}
 
+	return light;
+}
+
+RT_Light RT_InitLightM4(RT_LightDefinition definition, RT_Mat34 transform) 
+{
+	RT_Light light = { 0 };
+
+	light.kind = definition.kind;
+	light.emission = RT_PackRGBE(definition.emission);
+
+	light.spot_angle = RT_Uint8FromFloat(definition.spot_angle);
+	light.spot_softness = RT_Uint8FromFloat(definition.spot_softness);
+
+	light.transform = transform;
 	return light;
 }
 
