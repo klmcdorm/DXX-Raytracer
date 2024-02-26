@@ -270,7 +270,7 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.3f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
-		.extent = {0.55,0.15,1,0.3},
+		.extent = {0.55,0.15,0.99,0.3},
 	},
 	{
 		.name = "metl080",
@@ -279,7 +279,7 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.3f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
-		.extent = {0.0,0.15,0.45,0.3},
+		.extent = {0.01,0.15,0.45,0.3},
 	},
 	{
 		.name = "metl089",
@@ -288,7 +288,7 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.3f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
-		.extent = {0.55,0.15,1.0,0.3},
+		.extent = {0.55,0.15,0.99,0.3},
 	},
 	{
 		.name = "metl090",
@@ -297,8 +297,17 @@ RT_LightDefinition g_light_definitions[] =
 		.radius = 0.3f,
 		.spot_angle = 0.3f,
 		.spot_softness = 0.2f,
-		.extent = {0.0,0.15,0.45,0.3},
+		.extent = {0.01,0.15,0.45,0.3},
 	},
+	//{
+	//	.name = "empty",
+	//	.kind = RT_LightKind_Area_Rect,
+	//	.emission = {1.f,1.f,1.f},
+	//	.radius = 1.0f,
+	//	.spot_angle = 0.3f,
+	//	.spot_softness = 0.2f,
+	//	.extent = {0,0,1,1},
+	//},
 };
 
 static RT_LightDefinition g_default_light_definitions[RT_ARRAY_COUNT(g_light_definitions)];
