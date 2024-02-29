@@ -36,8 +36,8 @@ short m_lights_to_sort[1024];
 int m_lights_found = 0;
 
 // Cache whether a line of sight exists from one segment to another.
-uint8_t m_segment2segment_vis[MAX_SEGMENTS][MAX_SEGMENTS];
-void InitSegment2SegmentVis() 
+uint8_t m_can_see_segment[MAX_SEGMENTS][MAX_SEGMENTS];
+void InitSegmentVisibility() 
 {
 	fvi_query query;
 	fvi_info result;
@@ -45,7 +45,7 @@ void InitSegment2SegmentVis()
 
 	for (int i = 0; i < Num_segments; i++) 
 	{
-		m_segment2segment_vis[i][i] = 1;
+		m_can_see_segment[i][i] = 1;
 		compute_segment_center(&seg_i_center, &Segments[i]);
 
 		for (int j = 0; j < i; j++) 
@@ -60,16 +60,18 @@ void InitSegment2SegmentVis()
 			query.ignore_obj_list = NULL;
 			query.flags = FQ_TRANSWALL;
 
+			// assumes that if line of sight goes one way, it also goes the other
+			// (might not be true if there's a one-way wall)
 			find_vector_intersection(&query, &result);
 			if (result.hit_type == HIT_WALL) 
 			{
-				m_segment2segment_vis[i][j] = 0;
-				m_segment2segment_vis[j][i] = 0;
+				m_can_see_segment[i][j] = 0;
+				m_can_see_segment[j][i] = 0;
 			}
 			else 
 			{
-				m_segment2segment_vis[i][j] = 1;
-				m_segment2segment_vis[j][i] = 1;
+				m_can_see_segment[i][j] = 1;
+				m_can_see_segment[j][i] = 1;
 			}
 		}
 	}
@@ -293,9 +295,9 @@ bool RT_LoadLevel()
 		g_active_level = Current_level_num;
 
 		// NOTE: relatively slow for larger levels
-		//RT_LOGF(RT_LOGSERVERITY_INFO, "InitSegment2SegmentVis START");
-		//InitSegment2SegmentVis();
-		//RT_LOGF(RT_LOGSERVERITY_INFO, "InitSegment2SegmentVis FINISH");
+		RT_LOGF(RT_LOGSERVERITY_INFO, "InitSegmentVisibility START");
+		InitSegmentVisibility();
+		RT_LOGF(RT_LOGSERVERITY_INFO, "InitSegmentVisibility FINISH");
 
 		return RT_RESOURCE_HANDLE_VALID(g_level_resource);
 	}
@@ -323,13 +325,15 @@ void RT_RenderLevel(RT_Vec3 player_pos)
 typedef struct _m_visit_queue_entry {
 	// Segment to visit.
 	uint16_t segment_index;
+	// Segment we started at.
+	uint16_t entry_segment_index;
 	// Location from which to reach segment (either actual Viewer position or segment side)
 	RT_Vec3  entry_pos;
 	// Distance from Viewer, by best scoring segment path (number of segments)
 	uint8_t  depth;
-	// Distance from Viewer, by best scoring segment path (length in units)
-	float    segment_distance;
-	// Accumulated light relevance score
+	// Accumulated light relevance score up to entry_pos
+	float    entry_score;
+	// Estimated light relevance score
 	float    score;
 } m_visit_queue_entry;
 
@@ -411,16 +415,17 @@ m_visit_queue_entry RemoveFromVisitQueue()
 }
 
 // Heuristic search through nearby segments for lights.
-void TraverseSegmentsForLights(short seg_num, RT_Vec3 seg_entry_pos) {
+void TraverseSegmentsForLights(short start_segnum, RT_Vec3 start_pos) {
 	uint8_t lights_added[_countof(m_lights)] = { 0 };
 	uint8_t visit_list[MAX_SEGMENTS] = { 0 };
 
 	m_visit_queue_length = 0;
 	m_visit_queue_entry visiting_now = {
-		.segment_index = seg_num,
-		.entry_pos = seg_entry_pos,
+		.segment_index = start_segnum,
+		.entry_segment_index = start_segnum,
+		.entry_pos = start_pos,
 		.depth = 0,
-		.segment_distance = 0,
+		.entry_score = 0,
 		.score = 0,
 	};
 	AddToVisitQueue(visiting_now);
@@ -428,16 +433,19 @@ void TraverseSegmentsForLights(short seg_num, RT_Vec3 seg_entry_pos) {
 	while (m_visit_queue_length > 0) {
 		visiting_now = RemoveFromVisitQueue();
 
-		short   segnum             = visiting_now.segment_index;
-		RT_Vec3 curr_seg_entry_pos = visiting_now.entry_pos;
-		uint8_t curr_rec_depth     = visiting_now.depth;
-		float   curr_rec_dist      = visiting_now.segment_distance;
+		short   segnum       = visiting_now.segment_index;
+		short   entry_segnum = visiting_now.entry_segment_index;
+		RT_Vec3 entry_pos    = visiting_now.entry_pos;
+		float   entry_score  = visiting_now.entry_score;
+		uint8_t depth        = visiting_now.depth;
+		float   score        = visiting_now.score;
 		segment* seg = &Segments[segnum];
 
 		// If we've already processed this segment, skip it
-		if (visit_list[segnum]) {
+		// TODO to handle heuristics including things like line of sight, 
+		//      it may be necessary to visit the same segment multiple times (i.e. from different directions).
+		if (visit_list[segnum])
 			continue;
-		}
 		visit_list[segnum] = 1;
 
 		// Upload all the lights in this segment
@@ -452,27 +460,22 @@ void TraverseSegmentsForLights(short seg_num, RT_Vec3 seg_entry_pos) {
 			if (lights_added[j] != 0)
 				continue;
 
-			// Filter out lights that are too far away from the camera - direct path
-			const float distance_from_player = RT_Vec3Length(RT_Vec3Sub(RT_Vec3Fromvms_vector(&Viewer->pos), RT_TranslationFromMat34(m_lights[j].transform)));
-			if (distance_from_player > max_distance)
-				continue;
+			float distance_score = entry_score + RT_Vec3Length(RT_Vec3Sub(entry_pos, RT_TranslationFromMat34(m_lights[j].transform)));
 
-			// Filter out lights that are too far away from the camera - segment distance - this is broken, don't use it
-			const float distance_from_seg_entry_pos = RT_Vec3Length(RT_Vec3Sub(curr_seg_entry_pos, RT_TranslationFromMat34(m_lights[j].transform)));
-			//if (curr_rec_dist + distance_from_seg_entry_pos > max_seg_distance)
-			//	continue;
+			if (distance_score > max_distance)
+				continue;
 
 			// Mark this light as added
 			lights_added[j] = 1;
 
 			// The lower the value, the more relevant the light is
-			m_lights_relevance_score[m_lights_found] = (float)(curr_rec_dist + distance_from_seg_entry_pos);
+			m_lights_relevance_score[m_lights_found] = (float)(distance_score);
 			m_lights_to_sort[m_lights_found] = j;
 			++m_lights_found;
 		}
 
-		// search adjacent segments, but not if we've traveled too far
-		if (curr_rec_depth >= max_rec_depth) 
+		// search adjacent segments, if we haven't gone too far
+		if (depth >= max_rec_depth) 
 			continue;
 
 		for (size_t i = 0; i < MAX_SIDES_PER_SEGMENT; ++i) {
@@ -501,21 +504,36 @@ void TraverseSegmentsForLights(short seg_num, RT_Vec3 seg_entry_pos) {
 			const RT_Vec3 center = RT_Vec3Muls(RT_Vec3Add(tmp1, tmp2), 0.25f);
 
 			// Find distance between segment entry
-			const RT_Vec3 vector_from_entry_to_curr_segment = RT_Vec3Sub(center, curr_seg_entry_pos);
+			const RT_Vec3 vector_from_entry_to_curr_segment = RT_Vec3Sub(center, entry_pos);
 			const float distance_from_entry_to_curr_segment_squared = RT_Vec3Length(vector_from_entry_to_curr_segment);
-
-			// too far, skip it
-			if (distance_from_entry_to_curr_segment_squared > max_seg_distance)
-				continue;
 
 			m_visit_queue_entry new_entry = {
 				.segment_index = seg_num_child,
-				.entry_pos = center,
-				.depth = curr_rec_depth + 1,
-				.segment_distance = curr_rec_dist + distance_from_entry_to_curr_segment_squared,
+				.entry_segment_index = entry_segnum,
+				.entry_pos = entry_pos,
+				.entry_score = entry_score,
+				.depth = depth + 1,
 			};
-			// TODO maybe alter score based on other factors, like line of sight
-			new_entry.score = new_entry.segment_distance;
+
+			// is it directly visible?
+			if (!m_can_see_segment[entry_segnum][seg_num_child]) 
+			{
+				// start new path segment
+				new_entry.entry_segment_index = segnum;
+				new_entry.entry_pos = center;
+				// add distance penalty for breaking line of sight multiple times
+				new_entry.score = entry_score + distance_from_entry_to_curr_segment_squared + (entry_segnum == start_segnum ? 0.0f : 100.0f);
+				new_entry.entry_score = new_entry.score;
+			}
+			else 
+			{
+				new_entry.score = entry_score + distance_from_entry_to_curr_segment_squared;
+			}
+
+			// too far, skip it
+			if (new_entry.score > max_distance)
+				continue;
+
 			// The same segment may be added multiple times -- but hopefully with different scores.
 			AddToVisitQueue(new_entry);
 		}
