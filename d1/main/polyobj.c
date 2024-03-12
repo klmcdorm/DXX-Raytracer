@@ -536,12 +536,24 @@ void draw_polygon_model(_RT_DRAW_POLY vms_vector* pos, vms_matrix* orient, vms_a
 				po = &Polygon_models[po->simpler_model - 1];
 		}
 
-	if (alt_textures)
+	uint16_t override_material = 0;
+	if (alt_textures) 
+	{
 		// TODO(daniel): When do these alt textures get used? Our renderer doesn't currently support anything like this.
+		// TODO(kevin): alt textures are used for (1) multiplayer ships and (2) covering an instance of a robot with a single texture (chosen by the level designer)
+		int all_same_override = 1;
 		for (i = 0; i < po->n_textures; i++) {
+			all_same_override &= (!override_material) || (override_material == alt_textures[i].index);
+
 			texture_list_index[i] = alt_textures[i];
+			override_material = alt_textures[i].index;
 			texture_list[i] = &GameBitmaps[alt_textures[i].index];
 		}
+
+		// TODO this should mean multiplayer ships. Definitely the unsupported case.
+		if (!all_same_override)
+			override_material = 0;
+	}
 	else
 		for (i = 0; i < po->n_textures; i++) {
 			texture_list_index[i] = ObjBitmaps[ObjBitmapPtrs[po->first_texture + i]];
@@ -573,7 +585,7 @@ void draw_polygon_model(_RT_DRAW_POLY vms_vector* pos, vms_matrix* orient, vms_a
 #else
 		//RT_DrawPolyModel(model_num, objNum, object_type, pos, orient);
 
-		RT_DrawPolyModelTree(model_num, signature, object_type, pos, orient, anim_angles);
+		RT_DrawPolyModelTree(model_num, signature, object_type, pos, orient, anim_angles, override_material);
 #endif //RT_DX12
 	}
 	else {
@@ -611,7 +623,7 @@ void draw_polygon_model(_RT_DRAW_POLY vms_vector* pos, vms_matrix* orient, vms_a
 					.submodel_index = i,
 				};
 
-				RT_DrawSubPolyModel(po->submodel[i], &combined_matrix, key);
+				RT_DrawSubPolyModel(po->submodel[i], &combined_matrix, key, override_material);
 
 				// g_rt_prev_submodel_transforms[objNum].transforms[i] = combined_matrix;
 #endif //RT_DX12
