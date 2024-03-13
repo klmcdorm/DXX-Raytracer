@@ -321,9 +321,8 @@ void RT_ExtractLightsFromSide(side *side, RT_Vertex *vertices, RT_Vec3 normal, i
 			}
 			else 
 			{
-				// align to the edge between vertices 0 and 1, by UV coordinates.
+				// Resize [-1,1] box to calculated bounds.
 				RT_Vec2 box_center = RT_Vec2Muls(RT_Vec2Add(box_min, box_max), 0.5);
-
 				RT_Mat4 transform = {
 					.e = {
 						box_size.x * 0.5, 0, 0,                box_center.x,
@@ -333,30 +332,35 @@ void RT_ExtractLightsFromSide(side *side, RT_Vertex *vertices, RT_Vec3 normal, i
 					}
 				};
 
+				// Change to coordinates based on side edges (in UV space).
+				RT_Vec2 uv_center = RT_Vec2Add(RT_Vec2Add(uvs[0], uvs[1]), RT_Vec2Add(uvs[2], uvs[3]));
+				uv_center = RT_Vec2Muls(uv_center, 0.25f);
+
 				RT_Vec2 uvtangent   = RT_Vec2Sub(uvs[1], uvs[0]);
-				RT_Vec2 uvtangent2  = RT_Vec2Normalize(RT_Vec2Make(-uvtangent.y, uvtangent.x));
 				RT_Vec2 uvbitangent = RT_Vec2Sub(uvs[0], uvs[3]);
-				uvbitangent = RT_Vec2Muls(uvtangent2, RT_Vec2Dot(uvtangent2, uvbitangent));
 
 				RT_Mat4 uvtransform = {
 					.e = {
-						uvtangent.x, 0, uvbitangent.x,   uvs[0].x,
+						uvtangent.x, 0, uvbitangent.x,   uv_center.x,
 						0,           1, 0,               0,
-						uvtangent.y, 0, uvbitangent.y,   uvs[0].y,
+						uvtangent.y, 0, uvbitangent.y,   uv_center.y,
 						0,           0, 0,               1
 					}
 				};
 				transform = RT_Mat4Mul(RT_Mat4Inverse(uvtransform), transform);
 
+				// Map to side edges in world space.
 				RT_Vec3 side_center = vertices[0].pos;
+				side_center = RT_Vec3Add(side_center, vertices[1].pos);
+				side_center = RT_Vec3Add(side_center, vertices[2].pos);
+				side_center = RT_Vec3Add(side_center, vertices[3].pos);
+				side_center = RT_Vec3Muls(side_center, 0.25f);
 
 				// Offset position with normal to prevent light clipping with walls.
 				RT_Vec3 position = RT_Vec3MulsAdd(side_center, normal, 0.015f);
 
-				RT_Vec3   tangent = RT_Vec3Sub(vertices[1].pos, vertices[0].pos);
-				RT_Vec3   tangent2 = RT_Vec3Normalize(RT_Vec3Cross(tangent, normal));
-				RT_Vec3   bitangent = RT_Vec3Sub(vertices[0].pos, vertices[3].pos);
-				bitangent = RT_Vec3Muls(tangent2, RT_Vec3Dot(bitangent, tangent2));
+				RT_Vec3 tangent = RT_Vec3Sub(vertices[1].pos, vertices[0].pos);
+				RT_Vec3 bitangent = RT_Vec3Sub(vertices[0].pos, vertices[3].pos);
 
 				transform = RT_Mat4Mul(RT_Mat4FromMat34(RT_Mat34FromColumns(tangent, normal, bitangent, position)), transform);
 				m_lights[m_light_count] = RT_InitLightM4(g_light_definitions[light_index], RT_Mat34FromMat4(transform));
